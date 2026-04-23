@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "llm-extraction-pipeline"
+version = "0.1.0"
+description = "Production-oriented LLM extraction, evaluation, and serving pipeline"
+authors = ["Baraa"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.7"
+fastapi = "^0.115"
+uvicorn = "^0.30"
+pandas = "^2.2"
+openai = "^1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+ruff = "^0.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = ["--import-mode=importlib"]
+testpaths = ["tests"]
