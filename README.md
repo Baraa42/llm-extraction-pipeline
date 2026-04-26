@@ -26,6 +26,10 @@ The goal is to build a production-oriented LLM extraction pipeline, not just a p
 
 See [docs/demo_examples.md](docs/demo_examples.md) for representative extraction examples, including clean requests, support tickets, ambiguous call notes, API usage, and reliability behavior.
 
+## Human Review Workflow
+
+The pipeline supports a lightweight human-review loop for ambiguous or failed extractions. See [docs/human_review_workflow.md](docs/human_review_workflow.md) for the correction format and promotion path from reviewed examples into future gold datasets.
+
 ## Architecture
 
 ```text

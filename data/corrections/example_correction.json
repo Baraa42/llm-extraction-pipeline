@@ -1,0 +1,37 @@
+{
+  "id": "review_001",
+  "source_example_id": "ex_039",
+  "input_text": "Email: 'Hi it's Chris from Vantage Solar. We need the installer app rebuilt, or at least patched. The CEO said spend whatever, ops says keep below $15k. Need something usable before the Texas rollout.'",
+  "prediction": {
+    "company_name": "Vantage Solar",
+    "contact_name": "Chris",
+    "request_type": "implementation_request",
+    "priority": "high",
+    "budget_amount": 15000,
+    "budget_currency": "USD",
+    "deadline_iso": null,
+    "action_items": [
+      "Rebuild or patch the installer app to a usable state",
+      "Provide cost estimate and options"
+    ],
+    "notes": null,
+    "needs_human_review": false
+  },
+  "corrected_target": {
+    "company_name": "Vantage Solar",
+    "contact_name": "Chris",
+    "request_type": "implementation_request",
+    "priority": "high",
+    "budget_amount": null,
+    "budget_currency": null,
+    "deadline_iso": null,
+    "action_items": [
+      "Clarify whether app should be rebuilt or patched",
+      "Prepare usable installer app for Texas rollout"
+    ],
+    "notes": "Budget is conflicting: CEO says spend whatever, ops says keep below $15k.",
+    "needs_human_review": true
+  },
+  "reviewer_notes": "The budget should not be extracted as a fixed amount because the text contains conflicting budget guidance. Human review is required to clarify rebuild vs patch scope and usable budget.",
+  "review_status": "corrected"
+}
