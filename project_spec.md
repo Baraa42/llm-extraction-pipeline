@@ -67,3 +67,21 @@ Set needs_human_review=true when:
 - final schema
 - success metrics
 - initial tests
+
+## Schema Labeling Rules
+
+### priority
+Allowed values: low, medium, high, urgent.
+Use urgent only when the user explicitly indicates immediate action / ASAP / emergency.
+
+### budget
+Use explicit budget only. Do not infer budget.
+
+### deadline
+Use explicit deadline only. Do not infer vague deadlines unless clearly stated.
+
+### action_items
+List concrete actions requested by the user.
+
+### needs_human_review
+True if the text is ambiguous, contradictory, or missing critical information.

@@ -10,12 +10,12 @@ class RequestType(str, Enum):
     demo_request = "demo_request"
     support_issue = "support_issue"
     pricing_inquiry = "pricing_inquiry"
-    partnership = "partnership"
+    proposal_request = "proposal_request"
+    implementation_request = "implementation_request"
+    data_request = "data_request"
+    content_request = "content_request"
     sales_lead = "sales_lead"
-    complaint = "complaint"
-    feature_request = "feature_request"
     other = "other"
-
 
 class Priority(str, Enum):
     low = "low"
