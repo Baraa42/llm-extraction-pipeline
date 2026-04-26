@@ -168,6 +168,14 @@ The API requires `OPENAI_API_KEY`. It uses `OPENAI_MODEL` when set, otherwise th
 
 `POST /extract` returns the validated prediction plus reliability metadata: `raw_response`, `final_raw_response`, `error`, `error_type`, `attempts`, and `repaired`.
 
+## Run with Docker
+
+Build:
+
+```bash
+docker build -t llm-extraction-pipeline .
+```
+
 ## Sample Examples
 
 ### Example 1: Clean Email
