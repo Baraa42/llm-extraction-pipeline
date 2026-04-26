@@ -1,4 +1,4 @@
-from src.prompt import build_extraction_prompt
+from src.prompt import build_extraction_prompt, build_repair_prompt
 
 
 def test_prompt_includes_input_text():
@@ -170,3 +170,17 @@ def test_prompt_v3_includes_request_type_boundary_examples():
     assert "general price sheet / package pricing / rate card -> pricing_inquiry" in prompt
     assert "diagnose conversion drop / tracking issue -> support_issue" in prompt
     assert "badge printing / conference print materials -> content_request" in prompt
+
+
+def test_repair_prompt_includes_repair_context():
+    prompt = build_repair_prompt(
+        input_text="Sarah from Acme wants a demo.",
+        raw_response="not json",
+        error_message="JSONDecodeError: bad output",
+    )
+
+    assert "Sarah from Acme wants a demo." in prompt
+    assert "not json" in prompt
+    assert "JSONDecodeError: bad output" in prompt
+    assert "Return a corrected JSON object only" in prompt
+    assert "Do not include markdown" in prompt

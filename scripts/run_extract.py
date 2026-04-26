@@ -9,7 +9,7 @@ from typing import Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.evaluate import load_gold_examples
-from src.extractor import extract_record
+from src.extractor import extract_record, extract_record_result
 
 
 def _error_string(exc: Exception) -> str:
@@ -47,6 +47,7 @@ def _run_dataset(gold_path: str, out_path: str, limit: int | None) -> int:
 
     succeeded = 0
     failed = 0
+    repaired = 0
     total = len(examples)
 
     with out.open("w", encoding="utf-8") as handle:
@@ -54,23 +55,32 @@ def _run_dataset(gold_path: str, out_path: str, limit: int | None) -> int:
             example_id = example.get("id", f"line_{index}")
             print(f"Processing {index}/{total}: {example_id}")
 
-            try:
-                record = extract_record(example["input_text"])
-            except Exception as exc:
+            result = extract_record_result(example["input_text"])
+            if result.record is None:
                 failed += 1
                 output = {
                     "id": example_id,
                     "prediction": None,
-                    "raw_response": None,
-                    "error": _error_string(exc),
+                    "raw_response": result.raw_response,
+                    "final_raw_response": result.final_raw_response,
+                    "error": result.error,
+                    "error_type": result.error_type,
+                    "attempts": result.attempts,
+                    "repaired": result.repaired,
                 }
             else:
                 succeeded += 1
+                if result.repaired:
+                    repaired += 1
                 output = {
                     "id": example_id,
-                    "prediction": record.model_dump(mode="json"),
-                    "raw_response": None,
+                    "prediction": result.record.model_dump(mode="json"),
+                    "raw_response": result.raw_response,
+                    "final_raw_response": result.final_raw_response,
                     "error": None,
+                    "error_type": None,
+                    "attempts": result.attempts,
+                    "repaired": result.repaired,
                 }
 
             handle.write(json.dumps(output) + "\n")
@@ -78,6 +88,7 @@ def _run_dataset(gold_path: str, out_path: str, limit: int | None) -> int:
     print(f"Processed: {total}")
     print(f"Succeeded: {succeeded}")
     print(f"Failed: {failed}")
+    print(f"Repaired: {repaired}")
     print(f"Saved to: {out_path}")
     return 0
 

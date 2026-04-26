@@ -175,3 +175,45 @@ Text:
 \"\"\"
 {input_text}
 \"\"\""""
+
+
+def build_repair_prompt(input_text: str, raw_response: str, error_message: str) -> str:
+    """Build a short prompt to repair malformed extraction output."""
+    return f"""You attempted to extract structured JSON from the input text, but the output failed parsing or schema validation.
+
+Original input:
+\"\"\"
+{input_text}
+\"\"\"
+
+Bad output:
+\"\"\"
+{raw_response}
+\"\"\"
+
+Error:
+\"\"\"
+{error_message}
+\"\"\"
+
+Return a corrected JSON object only.
+Do not include markdown.
+Do not include explanations.
+Follow this schema:
+{{
+  "company_name": string or null,
+  "contact_name": string or null,
+  "request_type": one of ["demo_request", "support_issue", "pricing_inquiry", "proposal_request", "implementation_request", "data_request", "content_request", "sales_lead", "other"],
+  "priority": one of ["low", "medium", "high", "urgent"],
+  "budget_amount": number or null,
+  "budget_currency": string or null,
+  "deadline_iso": string or null,
+  "action_items": list of strings,
+  "notes": string or null,
+  "needs_human_review": boolean
+}}
+
+Use null for missing or ambiguous values.
+action_items must always be a list.
+budget_currency must be a 3-letter code or null.
+deadline_iso must be YYYY-MM-DD or null."""

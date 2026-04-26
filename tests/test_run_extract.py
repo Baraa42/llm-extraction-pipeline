@@ -3,6 +3,7 @@ import json
 import pytest
 
 from scripts import run_extract
+from src.extractor import ExtractionResult
 from src.schemas import ExtractionRecord
 
 
@@ -18,6 +19,31 @@ def make_record(company_name="Acme"):
         action_items=["Migrate Zendesk setup"],
         notes=None,
         needs_human_review=False,
+    )
+
+
+def make_result(company_name="Acme", repaired=False):
+    raw_response = f'{{"company_name": "{company_name}"}}'
+    return ExtractionResult(
+        record=make_record(company_name=company_name),
+        raw_response=raw_response,
+        final_raw_response=raw_response,
+        error=None,
+        error_type=None,
+        attempts=2 if repaired else 1,
+        repaired=repaired,
+    )
+
+
+def make_error_result(error_type="unknown_error"):
+    return ExtractionResult(
+        record=None,
+        raw_response="bad output",
+        final_raw_response="still bad",
+        error="ValueError: bad model output",
+        error_type=error_type,
+        attempts=2,
+        repaired=False,
     )
 
 
@@ -47,8 +73,8 @@ def test_dataset_mode_writes_jsonl(monkeypatch, tmp_path, capsys):
     )
     monkeypatch.setattr(
         run_extract,
-        "extract_record",
-        lambda input_text: make_record(company_name=input_text),
+        "extract_record_result",
+        lambda input_text: make_result(company_name=input_text),
     )
 
     exit_code = run_extract.main(["--gold", str(gold_path), "--out", str(out_path)])
@@ -58,8 +84,12 @@ def test_dataset_mode_writes_jsonl(monkeypatch, tmp_path, capsys):
     assert len(lines) == 2
     assert lines[0]["id"] == "ex_001"
     assert lines[0]["prediction"]["company_name"] == "First"
-    assert lines[0]["raw_response"] is None
+    assert lines[0]["raw_response"] is not None
+    assert lines[0]["final_raw_response"] == lines[0]["raw_response"]
     assert lines[0]["error"] is None
+    assert lines[0]["error_type"] is None
+    assert lines[0]["attempts"] == 1
+    assert lines[0]["repaired"] is False
     assert lines[1]["id"] == "ex_002"
     assert lines[1]["prediction"] is not None
     assert lines[1]["prediction"]["company_name"] == "Second"
@@ -83,10 +113,10 @@ def test_dataset_mode_writes_error_without_crashing(monkeypatch, tmp_path):
 
     def fail_extract(input_text):
         if input_text == "Bad output":
-            raise ValueError("bad model output")
-        return make_record(company_name=input_text)
+            return make_error_result("schema_validation_error")
+        return make_result(company_name=input_text)
 
-    monkeypatch.setattr(run_extract, "extract_record", fail_extract)
+    monkeypatch.setattr(run_extract, "extract_record_result", fail_extract)
 
     exit_code = run_extract.main(["--gold", str(gold_path), "--out", str(out_path)])
 
@@ -98,8 +128,12 @@ def test_dataset_mode_writes_error_without_crashing(monkeypatch, tmp_path):
     assert lines[0]["error"] is None
     assert lines[1]["id"] == "ex_002"
     assert lines[1]["prediction"] is None
-    assert lines[1]["raw_response"] is None
+    assert lines[1]["raw_response"] == "bad output"
+    assert lines[1]["final_raw_response"] == "still bad"
     assert lines[1]["error"] == "ValueError: bad model output"
+    assert lines[1]["error_type"] == "schema_validation_error"
+    assert lines[1]["attempts"] == 2
+    assert lines[1]["repaired"] is False
 
 
 def test_dataset_mode_limit_processes_first_n(monkeypatch, tmp_path):
@@ -115,7 +149,7 @@ def test_dataset_mode_limit_processes_first_n(monkeypatch, tmp_path):
         + "\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(run_extract, "extract_record", lambda input_text: make_record())
+    monkeypatch.setattr(run_extract, "extract_record_result", lambda input_text: make_result())
 
     exit_code = run_extract.main(
         ["--gold", str(gold_path), "--out", str(out_path), "--limit", "1"]
