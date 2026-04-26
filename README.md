@@ -22,6 +22,10 @@ The goal is to build a production-oriented LLM extraction pipeline, not just a p
 - Soft token-level `action_items` evaluation
 - Local FastAPI interface with `GET /health` and `POST /extract`
 
+## Demo Examples
+
+See [docs/demo_examples.md](docs/demo_examples.md) for representative extraction examples, including clean requests, support tickets, ambiguous call notes, API usage, and reliability behavior.
+
 ## Architecture
 
 ```text
@@ -176,65 +180,19 @@ Build:
 docker build -t llm-extraction-pipeline .
 ```
 
-## Sample Examples
-
-### Example 1: Clean Email
-
-Input:
-
-```text
-Hi, Sarah from Acme needs help migrating Zendesk by May 15. Budget is $12k.
-```
-
-Example output shape:
-
-```json
-{
-  "company_name": "Acme",
-  "contact_name": "Sarah",
-  "request_type": "implementation_request",
-  "priority": "medium",
-  "budget_amount": 12000,
-  "budget_currency": "USD",
-  "deadline_iso": "2026-05-15",
-  "action_items": ["Migrate Zendesk"],
-  "notes": null,
-  "needs_human_review": false
-}
-```
-
-### Example 2: Ambiguous Support Ticket
-
-Input:
-
-```text
-Customer maybe OrbitCare. Wants data export for auditors. Due 04/31/2026, which seems wrong. Budget included in support plan? Pull records and verify date.
-```
-
-Example output style:
-
-```json
-{
-  "company_name": null,
-  "contact_name": null,
-  "request_type": "data_request",
-  "priority": "high",
-  "budget_amount": null,
-  "budget_currency": null,
-  "deadline_iso": null,
-  "action_items": ["Pull records for auditor data export", "Verify deadline date"],
-  "notes": "Customer identity, deadline, and budget inclusion are unclear.",
-  "needs_human_review": true
-}
-```
-
-### Example 3: API Request
+Run:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/extract \
-  -H "Content-Type: application/json" \
-  -d '{"text":"Hi, Sarah from Acme needs help migrating Zendesk by May 15. Budget is $12k."}'
+docker run --rm -p 8000:8000 --env-file .env llm-extraction-pipeline
 ```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Your `.env` file must contain `OPENAI_API_KEY`.
 
 ## Current Baseline
 
@@ -292,7 +250,7 @@ Selected reports live in `data/reports/`:
 ## Roadmap
 
 - Expand dataset from 40 to 100+ examples.
-- Add Dockerfile and deployment docs.
+- Add Cloud Run deployment docs.
 - Deploy API to Cloud Run or a similar platform.
 - Add model comparison with cost and latency tracking.
 - Add human correction workflow.
