@@ -1,34 +1,55 @@
 # LLM Extraction + Eval Pipeline
 
-## Overview
+A production-oriented LLM extraction pipeline that converts messy business text into validated structured JSON, with schema validation, reliability handling, repeatable evaluation, a FastAPI interface, and Docker packaging.
 
-This project converts messy business text into validated structured JSON using an LLM, Pydantic schema validation, reliability handling, and measurable evaluation.
+The project is designed to be more than a prompt demo: model outputs are parsed, validated, evaluated, and made inspectable through raw response capture and failure metadata.
 
-It extracts fields such as company, contact, request type, priority, budget, deadline, action items, notes, and whether human review is needed.
+---
 
-## Why This Project Exists
+## What It Extracts
 
-The goal is to build a production-oriented LLM extraction pipeline, not just a prompt demo. The project emphasizes repeatable evaluation, schema validation, failure analysis, raw response capture, and reliability hooks that make model behavior inspectable.
+The pipeline extracts structured records from short unstructured business messages such as emails, support tickets, meeting notes, and call notes.
+
+Target fields include:
+
+- `company_name`
+- `contact_name`
+- `request_type`
+- `priority`
+- `budget_amount`
+- `budget_currency`
+- `deadline_iso`
+- `action_items`
+- `notes`
+- `needs_human_review`
+
+---
 
 ## Features
 
-- Strict extraction schema with Pydantic validation
+- Strict Pydantic extraction schema
 - Prompted JSON extraction from messy business text
+- Pydantic validation with forbidden extra fields
 - Raw model response capture
 - One repair retry for JSON parse or schema validation failures
-- Attempts and repaired metadata for reliability tracking
-- Prediction JSONL output for batch runs
+- Attempts / repaired metadata for reliability tracking
+- Prediction JSONL output for batch extraction
 - Exact field-level evaluation
 - Soft token-level `action_items` evaluation
-- Local FastAPI interface with `GET /health` and `POST /extract`
+- FastAPI interface with `GET /health` and `POST /extract`
+- Dockerized API
+- GitHub Actions test workflow
 
-## Demo Examples
+---
 
-See [docs/demo_examples.md](docs/demo_examples.md) for representative extraction examples, including clean requests, support tickets, ambiguous call notes, API usage, and reliability behavior.
+## Documentation
 
-## Human Review Workflow
+- [Demo examples](docs/demo_examples.md) — representative clean, ambiguous, and messy extraction examples
+- [Project writeup](docs/project_writeup.md) — design, reliability layer, evaluation methodology, failure analysis, and roadmap
+- [Human review workflow](docs/human_review_workflow.md) — correction format and promotion path into future gold datasets
+- [Deployment readiness](docs/deployment.md) — local Docker usage, Cloud Run templates, secret handling, and production caveats
 
-The pipeline supports a lightweight human-review loop for ambiguous or failed extractions. See [docs/human_review_workflow.md](docs/human_review_workflow.md) for the correction format and promotion path from reviewed examples into future gold datasets.
+---
 
 ## Architecture
 
@@ -59,7 +80,9 @@ evaluation report
 
 The model output is not trusted blindly. Each response is captured, parsed as JSON, and validated against the extraction schema. If parsing or schema validation fails, the reliability layer can make one repair attempt and preserve both the original and final raw responses.
 
-Evaluation separates strict structured-field metrics from softer `action_items` scoring. Exact match remains useful for fields such as dates, budgets, enums, and booleans, while token-level `action_items` metrics provide a more informative signal for naturally variable phrasing.
+Evaluation separates strict structured-field metrics from softer `action_items` scoring. Exact match remains useful for dates, budgets, enums, and booleans, while token-level `action_items` metrics provide a more informative signal for naturally variable task phrasing.
+
+---
 
 ## Project Structure
 
@@ -80,8 +103,10 @@ data/
   reports/        selected eval and analysis reports
 
 tests/            unit tests for schema, prompt, extractor, eval, API, CLIs
-docs/             labeling policy and supporting docs
+docs/             supporting documentation
 ```
+
+---
 
 ## Setup
 
@@ -100,11 +125,13 @@ cp .env.example .env
 Set the required variables in `.env`:
 
 ```bash
-OPENAI_API_KEY=...
+OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-5-mini
 ```
 
 Do not commit real secrets.
+
+---
 
 ## Run Extraction
 
@@ -132,6 +159,8 @@ poetry run python scripts/run_extract.py \
   --limit 5
 ```
 
+---
+
 ## Run Evaluation
 
 Validate the gold dataset:
@@ -149,6 +178,8 @@ poetry run python scripts/run_eval.py \
   --gold data/gold/gold_v1.jsonl \
   --pred data/predictions/baseline.jsonl
 ```
+
+---
 
 ## Run Local API
 
@@ -172,9 +203,16 @@ curl -X POST http://127.0.0.1:8000/extract \
   -d '{"text":"Hi, Sarah from Acme needs help migrating Zendesk by May 15. Budget is $12k."}'
 ```
 
-The API requires `OPENAI_API_KEY`. It uses `OPENAI_MODEL` when set, otherwise the extractor defaults to `gpt-5-mini`.
+`POST /extract` returns the validated prediction plus reliability metadata:
 
-`POST /extract` returns the validated prediction plus reliability metadata: `raw_response`, `final_raw_response`, `error`, `error_type`, `attempts`, and `repaired`.
+- `raw_response`
+- `final_raw_response`
+- `error`
+- `error_type`
+- `attempts`
+- `repaired`
+
+---
 
 ## Run with Docker
 
@@ -198,9 +236,18 @@ curl http://127.0.0.1:8000/health
 
 Your `.env` file must contain `OPENAI_API_KEY`.
 
+---
+
 ## Current Baseline
 
-- Current best prompt/baseline: `baseline_v3_1` / `reliability_v1`
+Current best prompt / baseline:
+
+```text
+baseline_v3_1 / reliability_v1
+```
+
+Current benchmark:
+
 - Dataset: 40 labeled examples
 - Model: `gpt-5-mini`
 - Prediction success: 40/40 (100.00%)
@@ -232,7 +279,9 @@ token_jaccard: 47.65%
 
 The dataset is intentionally small, so these numbers are directional rather than definitive. `action_items` exact match is intentionally strict and underestimates quality because equivalent tasks can be phrased many ways.
 
-## Reports
+---
+
+## Selected Reports
 
 Selected reports live in `data/reports/`:
 
@@ -241,21 +290,45 @@ Selected reports live in `data/reports/`:
 - `baseline_v2_failure_review_detailed.md`
 - `baseline_inspection_v1_v2.md`
 
+---
+
 ## Known Limitations
 
 - Dataset is small: 40 examples.
 - `action_items` exact match is too strict for natural-language task phrasing.
-- No deployment yet.
+- No live deployment yet.
 - No UI yet.
 - No human-in-the-loop correction interface yet.
 - No large-scale model comparison yet.
 - No cost or latency tracking yet.
+- No authentication or rate limiting yet.
+
+---
 
 ## Roadmap
 
 - Expand dataset from 40 to 100+ examples.
-- Add Cloud Run deployment docs.
 - Deploy API to Cloud Run or a similar platform.
 - Add model comparison with cost and latency tracking.
-- Add human correction workflow.
+- Add automated human correction workflow.
 - Add optional UI for reviewing extractions and errors.
+- Add request logging, audit trail, authentication, and rate limiting before any public production use.
+
+---
+
+## Positioning
+
+This project demonstrates a practical LLM systems workflow:
+
+```text
+schema design
+→ extraction
+→ validation
+→ reliability handling
+→ measurable evaluation
+→ API serving
+→ Docker packaging
+→ documentation
+```
+
+The core focus is building an evaluated and inspectable extraction system, not just prompting a model.
