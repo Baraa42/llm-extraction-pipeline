@@ -69,9 +69,10 @@ def test_prompt_clarifies_pricing_vs_proposal_request_distinction():
 def test_prompt_clarifies_deadline_alone_does_not_imply_high_priority():
     prompt = build_extraction_prompt("sample")
 
-    assert "A deadline alone does not imply high priority" in prompt
-    assert "medium: normal business requests with ordinary deadlines" in prompt
-    assert "urgent: ASAP, emergency, blocking, production-down, same-day" in prompt
+    assert "A normal future deadline does not imply high priority" in prompt
+    assert "Budget, a concrete deliverable, or a scoped project does not imply high priority" in prompt
+    assert "medium: normal business requests, proposals, quotes, demos, reports" in prompt
+    assert "urgent: emergency, production-down, blocking all users/orders/payments" in prompt
 
 
 def test_prompt_clarifies_notes_should_not_summarize():
@@ -110,3 +111,62 @@ def test_prompt_discourages_project_plan_action_items():
     assert "Do not add prep, testing, validation, documentation, scheduling" in prompt
     assert '"Document root cause and remediation in the ticket"' in prompt
     assert '"Set up and test demo environment"' in prompt
+
+
+def test_prompt_v3_includes_reference_date_rules():
+    prompt = build_extraction_prompt("sample")
+
+    assert "Reference date" in prompt
+    assert "2026-04-26" in prompt
+    assert '"by May 3" -> "2026-05-03"' in prompt
+    assert 'Relative deadlines like "next Friday", "tomorrow morning"' in prompt
+
+
+def test_prompt_v3_includes_budget_ambiguity_rules():
+    prompt = build_extraction_prompt("sample")
+
+    assert "Budget rules:" in prompt
+    assert "Extract budget_amount only when the budget is explicit" in prompt
+    assert "Set both budget_amount and budget_currency to null for ranges" in prompt
+    assert "budget_amount=null and budget_currency=null" in prompt
+    assert '"spend whatever, ops says keep below $15k"' in prompt
+
+
+def test_prompt_v3_includes_human_review_ambiguity_rules():
+    prompt = build_extraction_prompt("sample")
+
+    assert "Human review rules:" in prompt
+    assert "ambiguity or conflict affects what should be done, priced, scheduled, or extracted" in prompt
+    assert "Do not set true only because budget is missing" in prompt
+    assert "Unclear scope between MVP and full rollout -> true" in prompt
+    assert "Normal request with no budget -> false" in prompt
+
+
+def test_prompt_v3_includes_priority_calibration_examples():
+    prompt = build_extraction_prompt("sample")
+
+    assert "Priority measures operational urgency and business impact" in prompt
+    assert "same-day critical fix" in prompt
+    assert "workaround needed soon" in prompt
+    assert "medium: normal business requests, proposals, quotes, demos, reports" in prompt
+    assert '"urgent-ish", "today if possible", or "before weekend is ok"' in prompt
+
+
+def test_prompt_v31_includes_priority_only_calibration_examples():
+    prompt = build_extraction_prompt("sample")
+
+    assert '"Please send proposal and timeline by 2026-05-15" -> medium' in prompt
+    assert '"Prepare demo for 2026-04-28" -> medium' in prompt
+    assert '"Checkout returns 500 and blocks all online orders, fix immediately" -> urgent' in prompt
+    assert '"Dashboard must be live for board/customer demo next week and asks ASAP" -> urgent' in prompt
+    assert '"ASAP" is urgent only when paired with serious operational impact' in prompt
+
+
+def test_prompt_v3_includes_request_type_boundary_examples():
+    prompt = build_extraction_prompt("sample")
+
+    assert "Request type boundary examples:" in prompt
+    assert "procurement options / quote for equipment -> proposal_request if scoped" in prompt
+    assert "general price sheet / package pricing / rate card -> pricing_inquiry" in prompt
+    assert "diagnose conversion drop / tracking issue -> support_issue" in prompt
+    assert "badge printing / conference print materials -> content_request" in prompt

@@ -40,6 +40,13 @@ Schema:
   "needs_human_review": boolean
 }}
 
+Reference date:
+- The reference date for interpreting deadlines is 2026-04-26.
+- If text gives month/day without year, infer the year from the reference date.
+- Example: "by May 3" -> "2026-05-03".
+- Relative deadlines like "next Friday", "tomorrow morning", "this week", "after the holidays", or "next month" -> null.
+- If a relative or vague deadline appears important to execution, set needs_human_review to true.
+
 Rules:
 - Return exactly one JSON object and nothing else.
 - Use null for missing, unknown, ambiguous, or unsupported values.
@@ -47,6 +54,7 @@ Rules:
 - budget_currency must be a 3-letter currency code or null.
 - deadline_iso must be a date string in YYYY-MM-DD format or null.
 - If a deadline is unclear, relative, vague, invalid, or missing the exact date, set deadline_iso to null.
+- If text gives a month/day deadline without a year, infer the year from the reference date when unambiguous.
 - action_items must always be a list, even when empty.
 - Extract only action_items explicitly requested or clearly implied by the input text.
 - Do not invent internal implementation steps.
@@ -73,13 +81,53 @@ Rules:
 - Do not include contact or company names in action_items unless needed for the task.
 - Avoid overly generic action_items like "Send proposal" when the requested work can be made more specific.
 - Avoid overly verbose full-sentence action_items.
+- For action_items, prefer concise phrasing close to the requester's wording when possible.
+
+Budget rules:
+- Extract budget_amount only when the budget is explicit, fixed enough, approved or usable, and currency is known.
+- Set both budget_amount and budget_currency to null for ranges, conditional budgets, conflicting budgets, unapproved budgets, caps with exclusions, unknown currency, and vague limits like "under 6k" without currency.
+- If budget is ambiguous or conflicting, set budget_amount=null and budget_currency=null.
+- If budget ambiguity affects actionability, mention it briefly in notes and set needs_human_review=true.
+- "around $2k if needed" -> budget_amount=null and budget_currency=null.
+- "€8-10k range but CFO hasn't approved" -> budget_amount=null and budget_currency=null.
+- "cap is 25k all-in but hardware excluded" -> budget_amount=null and budget_currency=null.
+- "under 6k" with no currency -> budget_amount=null and budget_currency=null.
+- "spend whatever, ops says keep below $15k" -> budget_amount=null and budget_currency=null.
+
+Human review rules:
+- Set needs_human_review=true when ambiguity or conflict affects what should be done, priced, scheduled, or extracted.
+- Use true for ambiguous, conditional, or conflicting budget; vague deadline that appears important; unclear scope; unclear request_type; uncertain company/contact; or multiple possible interpretations.
+- Do not set true only because budget is missing.
+- Do not set true only because deadline is missing.
+- Do not set true for normal actionable requests with ordinary missing fields.
+- Unclear scope between MVP and full rollout -> true.
+- Budget conditional or not approved -> true.
+- "maybe company X" -> true.
+- Normal request with no budget -> false.
 
 Priority rules:
-- A deadline alone does not imply high priority.
-- urgent: ASAP, emergency, blocking, production-down, same-day, immediate action language, or critical production impact.
-- high: language indicates urgency, launch pressure, blocking status, short turnaround, executive/customer pressure, or clearly time-sensitive business impact.
-- medium: normal business requests with ordinary deadlines.
-- low: informational or non-urgent requests.
+- Priority measures operational urgency and business impact, not merely the presence of a deadline, budget, deliverable, or scoped project.
+- A normal future deadline does not imply high priority.
+- Budget, a concrete deliverable, or a scoped project does not imply high priority.
+- low: informational, exploratory, or explicitly non-urgent.
+- medium: normal business requests, proposals, quotes, demos, reports, content work, implementation plans, or project deliverables with ordinary future deadlines and no stated operational pressure.
+- high: important time-sensitive requests with clear operational or business pressure, customer-facing degradation, important broken workflow, launch pressure, executive/customer pressure, or workaround needed soon.
+- urgent: emergency, production-down, blocking all users/orders/payments, same-day critical fix, immediate action with serious operational impact, or ASAP tied to a critical executive/customer deadline.
+- "urgent-ish", "today if possible", or "before weekend is ok" should usually be high, not urgent.
+- "ASAP" is urgent only when paired with serious operational impact; otherwise high.
+
+Priority calibration examples:
+- "Please send proposal and timeline by 2026-05-15" -> medium.
+- "Prepare demo for 2026-04-28" -> medium.
+- "Deliver edited photos by 2026-04-29" -> medium.
+- "Quarterly analytics report draft by 2026-04-30" -> medium.
+- "Need migration plan by 2026-05-10" -> medium.
+- "Dashboard export button broken after last release" -> medium unless customer/business impact is stated.
+- "Tenant portal slow, especially invoices, need answer before Monday ops call" -> medium unless serious operational impact is stated.
+- "Urgent-ish, tomorrow morning would save us" -> high.
+- "Invoice has wrong tax rate, correct today if possible" -> high.
+- "Checkout returns 500 and blocks all online orders, fix immediately" -> urgent.
+- "Dashboard must be live for board/customer demo next week and asks ASAP" -> urgent.
 
 Request type guidance:
 - demo_request: asks for a demo.
@@ -92,6 +140,19 @@ Request type guidance:
 - content_request: website, copy, creative work, design assets, landing page, campaign, photos, or badge/content production.
 - sales_lead: general interest without a clear request.
 - other: fallback when no listed request_type fits.
+- Do not overuse other.
+
+Request type boundary examples:
+- procurement options / quote for equipment -> proposal_request if scoped.
+- general price sheet / package pricing / rate card -> pricing_inquiry.
+- audit with final report -> data_request.
+- diagnose conversion drop / tracking issue -> support_issue.
+- CRM cleanup estimate -> proposal_request if asking for estimate.
+- CRM cleanup/reporting work -> data_request if asking to perform cleanup/report.
+- maintenance retainer terms -> proposal_request.
+- executing ongoing maintenance -> implementation_request.
+- badge printing / conference print materials -> content_request.
+- dashboard live / wireframes / implementation plan -> implementation_request if build/setup is requested.
 
 Good action item examples:
 - "Fix the booking page"
