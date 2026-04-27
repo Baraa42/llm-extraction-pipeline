@@ -48,6 +48,7 @@ Target fields include:
 - [Project writeup](docs/project_writeup.md) — design, reliability layer, evaluation methodology, failure analysis, and roadmap
 - [Human review workflow](docs/human_review_workflow.md) — correction format and promotion path into future gold datasets
 - [Deployment readiness](docs/deployment.md) — local Docker usage, Cloud Run templates, secret handling, and production caveats
+- [Local inference](docs/local_inference.md) — OpenAI API backend and local OpenAI-compatible backend configuration
 
 ---
 
@@ -238,6 +239,12 @@ Your `.env` file must contain `OPENAI_API_KEY`.
 
 ---
 
+## Local Model Backend
+
+The extractor can use either the OpenAI API backend or a local OpenAI-compatible backend such as llama.cpp, Ollama, or LM Studio. See [docs/local_inference.md](docs/local_inference.md).
+
+---
+
 ## Current Baseline
 
 Current best prompt / baseline:
@@ -246,38 +253,44 @@ Current best prompt / baseline:
 baseline_v3_1 / reliability_v1
 ```
 
-Current benchmark:
+Benchmark datasets:
 
-- Dataset: 40 labeled examples
+- `gold_v1`: 40-example development dataset
+- `gold_v2`: 100-example expanded benchmark for model comparison work
+
+Current `gold_v2` benchmark:
+
+- Dataset: 100 labeled examples
 - Model: `gpt-5-mini`
-- Prediction success: 40/40 (100.00%)
-- Full record exact match: 2/40 (5.00%)
+- Prediction success: 100/100 (100.00%)
+- Errors: 0
+- Invalid predictions: 0
 
-Latest reliability eval:
+Field exact match:
 
 ```text
-company_name: 39/40 (97.50%)
-contact_name: 40/40 (100.00%)
-request_type: 34/40 (85.00%)
-priority: 38/40 (95.00%)
-budget_amount: 39/40 (97.50%)
-budget_currency: 39/40 (97.50%)
-deadline_iso: 40/40 (100.00%)
-action_items exact: 2/40 (5.00%)
-notes: 20/40 (50.00%)
-needs_human_review: 34/40 (85.00%)
+company_name: 98/100 (98.00%)
+contact_name: 100/100 (100.00%)
+request_type: 88/100 (88.00%)
+priority: 87/100 (87.00%)
+budget_amount: 100/100 (100.00%)
+budget_currency: 100/100 (100.00%)
+deadline_iso: 100/100 (100.00%)
+action_items exact: 6/100 (6.00%)
+notes: 43/100 (43.00%)
+needs_human_review: 87/100 (87.00%)
 ```
 
 Soft `action_items` metrics:
 
 ```text
-token_precision: 51.73%
-token_recall: 78.39%
-token_f1: 60.49%
-token_jaccard: 47.65%
+token_precision: 51.57%
+token_recall: 82.72%
+token_f1: 61.24%
+token_jaccard: 47.63%
 ```
 
-The dataset is intentionally small, so these numbers are directional rather than definitive. `action_items` exact match is intentionally strict and underestimates quality because equivalent tasks can be phrased many ways.
+`gold_v2` is still modest, so these numbers are directional rather than definitive. `action_items` exact match is intentionally strict and underestimates quality because equivalent tasks can be phrased many ways.
 
 ---
 
@@ -294,7 +307,7 @@ Selected reports live in `data/reports/`:
 
 ## Known Limitations
 
-- Dataset is small: 40 examples.
+- Dataset is still modest: 100 examples in `gold_v2`.
 - `action_items` exact match is too strict for natural-language task phrasing.
 - No live deployment yet.
 - No UI yet.
@@ -307,9 +320,10 @@ Selected reports live in `data/reports/`:
 
 ## Roadmap
 
-- Expand dataset from 40 to 100+ examples.
-- Deploy API to Cloud Run or a similar platform.
+- Use `gold_v2` to compare OpenAI API vs local model backends.
 - Add model comparison with cost and latency tracking.
+- Expand beyond 100 examples if broader coverage is needed.
+- Deploy API to Cloud Run or a similar platform.
 - Add automated human correction workflow.
 - Add optional UI for reviewing extractions and errors.
 - Add request logging, audit trail, authentication, and rate limiting before any public production use.

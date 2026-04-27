@@ -23,26 +23,16 @@ VALID_MODEL_JSON = {
 }
 
 
-class FakeResponses:
+class FakeLLM:
     def __init__(self, output_text):
         self.output_text = output_text
         self.calls = []
 
-    def create(self, **kwargs):
-        self.calls.append(kwargs)
+    def __call__(self, prompt):
+        self.calls.append(prompt)
         if isinstance(self.output_text, list):
-            return SimpleNamespace(output_text=self.output_text.pop(0))
-        return SimpleNamespace(output_text=self.output_text)
-
-
-class FakeOpenAI:
-    responses = None
-    instances = []
-
-    def __init__(self, api_key):
-        self.api_key = api_key
-        self.responses = self.__class__.responses
-        self.__class__.instances.append(self)
+            return self.output_text.pop(0)
+        return self.output_text
 
 
 @pytest.mark.parametrize(
@@ -63,28 +53,21 @@ def test_parse_model_json_invalid_json_raises_error():
 
 
 def test_extract_record_returns_validated_extraction_record(monkeypatch):
-    fake_responses = FakeResponses(json.dumps(VALID_MODEL_JSON))
-    FakeOpenAI.responses = fake_responses
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    fake_llm = FakeLLM(json.dumps(VALID_MODEL_JSON))
+    monkeypatch.setattr(extractor, "call_llm", fake_llm)
 
     record = extract_record("Sarah from Acme Labs wants a demo.")
 
     assert isinstance(record, ExtractionRecord)
     assert record.company_name == "Acme Labs"
     assert record.request_type == "demo_request"
-    assert fake_responses.calls[0]["model"] == "test-model"
-    assert fake_responses.calls[0]["temperature"] == 0
-    assert "Sarah from Acme Labs wants a demo." in fake_responses.calls[0]["input"]
+    assert "Sarah from Acme Labs wants a demo." in fake_llm.calls[0]
 
 
 def test_extract_record_result_schema_validation_errors_are_returned(monkeypatch):
     invalid_payload = {**VALID_MODEL_JSON, "request_type": "bug_report"}
-    FakeOpenAI.responses = FakeResponses(json.dumps(invalid_payload))
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    fake_llm = FakeLLM(json.dumps(invalid_payload))
+    monkeypatch.setattr(extractor, "call_llm", fake_llm)
 
     result = extract_record_result("Acme has a bug.", max_attempts=1)
 
@@ -96,44 +79,22 @@ def test_extract_record_result_schema_validation_errors_are_returned(monkeypatch
 def test_extract_record_missing_api_key_raises_value_error(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_MODEL", raising=False)
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
+    monkeypatch.setattr(
+        extractor,
+        "call_llm",
+        lambda prompt: (_ for _ in ()).throw(
+            extractor.LLMConfigError("OPENAI_API_KEY not set", "missing_openai_api_key")
+        ),
+    )
 
     with pytest.raises(ValueError, match="OPENAI_API_KEY not set"):
         extract_record("Sarah from Acme Labs wants a demo.")
 
 
-def test_extract_record_defaults_model_when_not_set(monkeypatch):
-    fake_responses = FakeResponses(json.dumps(VALID_MODEL_JSON))
-    FakeOpenAI.responses = fake_responses
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.delenv("OPENAI_MODEL", raising=False)
-
-    extract_record("Sarah from Acme Labs wants a demo.")
-
-    assert fake_responses.calls[0]["model"] == "gpt-5-mini"
-    assert "temperature" not in fake_responses.calls[0]
-
-
-def test_extract_record_omits_temperature_for_gpt_5_models(monkeypatch):
-    fake_responses = FakeResponses(json.dumps(VALID_MODEL_JSON))
-    FakeOpenAI.responses = fake_responses
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-5-mini")
-
-    extract_record("Sarah from Acme Labs wants a demo.")
-
-    assert "temperature" not in fake_responses.calls[0]
-
-
 def test_extract_record_result_successful_first_attempt(monkeypatch):
     raw_response = json.dumps(VALID_MODEL_JSON)
-    fake_responses = FakeResponses(raw_response)
-    FakeOpenAI.responses = fake_responses
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    fake_llm = FakeLLM(raw_response)
+    monkeypatch.setattr(extractor, "call_llm", fake_llm)
 
     result = extract_record_result("Sarah from Acme Labs wants a demo.")
 
@@ -150,11 +111,8 @@ def test_extract_record_result_successful_first_attempt(monkeypatch):
 def test_extract_record_result_parse_failure_then_repair_success(monkeypatch):
     bad_response = "not json {broken"
     repaired_response = json.dumps(VALID_MODEL_JSON)
-    fake_responses = FakeResponses([bad_response, repaired_response])
-    FakeOpenAI.responses = fake_responses
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    fake_llm = FakeLLM([bad_response, repaired_response])
+    monkeypatch.setattr(extractor, "call_llm", fake_llm)
 
     result = extract_record_result("Sarah from Acme Labs wants a demo.")
 
@@ -165,18 +123,15 @@ def test_extract_record_result_parse_failure_then_repair_success(monkeypatch):
     assert result.final_raw_response == repaired_response
     assert result.error is None
     assert result.error_type is None
-    assert "Bad output" in fake_responses.calls[1]["input"]
+    assert "Bad output" in fake_llm.calls[1]
 
 
 def test_extract_record_result_schema_failure_then_repair_success(monkeypatch):
     invalid_payload = {**VALID_MODEL_JSON, "request_type": "bug_report"}
     bad_response = json.dumps(invalid_payload)
     repaired_response = json.dumps(VALID_MODEL_JSON)
-    fake_responses = FakeResponses([bad_response, repaired_response])
-    FakeOpenAI.responses = fake_responses
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    fake_llm = FakeLLM([bad_response, repaired_response])
+    monkeypatch.setattr(extractor, "call_llm", fake_llm)
 
     result = extract_record_result("Sarah from Acme Labs wants a demo.")
 
@@ -190,11 +145,8 @@ def test_extract_record_result_schema_failure_then_repair_success(monkeypatch):
 
 
 def test_extract_record_result_both_attempts_fail(monkeypatch):
-    fake_responses = FakeResponses(["not json {broken", "still not json {broken"])
-    FakeOpenAI.responses = fake_responses
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    fake_llm = FakeLLM(["not json {broken", "still not json {broken"])
+    monkeypatch.setattr(extractor, "call_llm", fake_llm)
 
     result = extract_record_result("Sarah from Acme Labs wants a demo.")
 
@@ -206,14 +158,17 @@ def test_extract_record_result_both_attempts_fail(monkeypatch):
 
 
 def test_extract_record_result_missing_api_key_does_not_retry(monkeypatch):
-    FakeOpenAI.instances = []
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("OPENAI_MODEL", raising=False)
-    monkeypatch.setattr(extractor, "OpenAI", FakeOpenAI)
+    calls = []
+
+    def fail_config(prompt):
+        calls.append(prompt)
+        raise extractor.LLMConfigError("OPENAI_API_KEY not set", "missing_openai_api_key")
+
+    monkeypatch.setattr(extractor, "call_llm", fail_config)
 
     result = extract_record_result("Sarah from Acme Labs wants a demo.")
 
     assert result.record is None
-    assert result.error_type == "missing_api_key"
+    assert result.error_type == "missing_openai_api_key"
     assert result.attempts == 0
-    assert FakeOpenAI.instances == []
+    assert len(calls) == 1
